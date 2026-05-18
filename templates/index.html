@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeafLog Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #5f7060 0%, #92a48a 60%, #bdc7b9 100%);
+            background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(135deg, #5f7060 0%, #92a48a 60%, #bdc7b9 100%);
+            background-size: 24px 24px, 100% 100%; background-attachment: fixed;
+            margin: 0; padding: 20px; color: #1c2e20; min-height: 100vh;
+        }
+        .main-layout { display: flex; gap: 25px; max-width: 1200px; margin: 0 auto; }
+        .sidebar { width: 340px; flex-shrink: 0; }
+        .dashboard-content { flex-grow: 1; }
+        .section-box {
+            background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(5px);
+            padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(40,55,42,0.15);
+            margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        h2 { margin-top: 0; color: #28372a; font-size: 18px; border-bottom: 2px solid #92a48a; padding-bottom: 8px; }
+        
+        .rastlina-item {
+            padding: 12px 15px; background: white; border-radius: 10px; margin-bottom: 10px;
+            cursor: pointer; border: 2px solid transparent; font-weight: 600; color: #3b4d3e;
+            display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;
+        }
+        .rastlina-item:hover { background: #eef2ef; }
+        .rastlina-item.active { border-color: #354a37; background: #e3ebe4; color: #1c2e20; }
+
+        .editable-text { border-bottom: 1px dashed #5f7060; cursor: pointer; display: inline-block; }
+        .editable-text:hover { color: #000; background: rgba(255,255,255,0.5); }
+        .edit-input { width: 90%; padding: 4px; font-size: 14px; border: 1px solid #5f7060; border-radius: 4px; }
+
+        .calendar-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .calendar-table td { padding: 10px 4px; border-bottom: 1px solid #d8e2dc; color: #3b4d3e; }
+        .calendar-table .date-col { font-weight: bold; color: #5f7060; width: 110px; }
+        .prazdny-text { color: #8a9a8d; font-style: italic; }
+
+        .karty-grid { display: flex; gap: 15px; margin-bottom: 20px; justify-content: space-between; }
+        .karta { background: white; padding: 15px; border-radius: 12px; width: 30%; text-align: center; }
+        .karta h3 { margin: 0 0 5px 0; color: #6b7f72; font-size: 12px; text-transform: uppercase; }
+        .karta .hodnota { font-size: 24px; font-weight: bold; color: #28372a; }
+        
+        .stav-badge { font-size: 13px; margin-top: 8px; font-weight: bold; color: white; background: #5f7060; padding: 4px 10px; border-radius: 20px; display: inline-block; }
+        
+        .dashboard-header { display: flex; justify-content: space-between; align-items: flex-start; }
+
+        .btn-zaliat { 
+            background: #2e7d32; color: white; border: none; padding: 10px 20px; border-radius: 25px; 
+            font-weight: bold; cursor: pointer; display: none; font-size: 13px;
+            box-shadow: 0 4px 12px rgba(46,125,50,0.25); transition: all 0.2s;
+        }
+        .btn-zaliat:hover { background: #1b5e20; transform: translateY(-1px); }
+        .info-zaliate-status { display: none; font-size: 14px; font-weight: bold; color: #1b5e20; background: #e8f5e9; padding: 8px 16px; border-radius: 25px; border: 1px solid #c8e6c9; }
+
+        .graf-box { background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; height: 180px; position: relative; }
+        .graf-title { margin: 0 0 5px 0; font-size: 14px; color: #28372a; font-weight: 600; }
+        .graf-wrapper { position: relative; height: 140px; width: 100%; }
+        h1 { color: white; text-align: center; margin-bottom: 25px; text-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    </style>
+</head>
+<body>
+
+<h1>🌿 LeafLog: Botanický Systém Triedy</h1>
+
+<div class="main-layout">
+    
+    <div class="sidebar">
+        <div class="section-box">
+            <h2>Vyberte / Upravte rastlinu</h2>
+            <div id="zoznam-rastlin">
+                {% for r_id, r in rastliny.items() %}
+                    <div class="rastlina-item {% if loop.first %}active{% endif %}" id="btn-{{ r_id }}" onclick="prekniRastlinu('{{ r_id }}', event)">
+                        <span id="label-{{ r_id }}" class="editable-text" onclick="upravNazovRastliny('{{ r_id }}', event)">{{ r.nazov }}</span>
+                        <span style="font-size: 12px; color: #6b7f72;">●</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="section-box">
+            <h2>📅 Týždenníci (Služba)</h2>
+            <table class="calendar-table">
+                {% for s in kalendar %}
+                <tr>
+                    <td class="date-col">{{ s.tyzden }}</td>
+                    <td>
+                        <span id="sluzba-{{ s.index }}" class="editable-text {% if s.sluzba == '' %}prazdny-text{% endif %}" onclick="upravTyzdennika({{ s.index }}, event)">
+                            {% if s.sluzba != "" %}👤 {{ s.sluzba }}{% else %}Zadaj týždenníkov...{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    <div class="dashboard-content">
+        <div class="section-box" style="background: rgba(255, 255, 255, 0.95);">
+            <div class="dashboard-header">
+                <div>
+                    <h2 id="aktualny-nazov-rastliny">Načítavam...</h2>
+                    <p style="font-size: 13px; color: #6b7f72; margin-top: -5px;">Posledná kontrola senzora: <strong id="cas-aktualizacie">--:--</strong></p>
+                </div>
+                
+                <div>
+                    <button class="btn-zaliat" id="btn-zaliat-klik" onclick="odosliZaliate()">💧 Označiť ako poliate</button>
+                    <div class="info-zaliate-status" id="txt-zaliate-status">✅ Už poliate</div>
+                </div>
+            </div>
+            
+            <div class="karty-grid">
+                <div class="karta"><h3>Teplota</h3><div class="hodnota" id="txt-teplota">-- °C</div></div>
+                <div class="karta"><h3>Vlhkosť vzduchu</h3><div class="hodnota" id="txt-vzduch">-- %</div></div>
+                <div class="karta">
+                    <h3>Vlhkosť pôdy</h3>
+                    <div class="hodnota" id="txt-poda">-- %</div>
+                    <div><div class="stav-badge" id="txt-stav">--</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graf-box"><div class="graf-title">Vývoj vlhkosti pôdy (%)</div><div class="graf-wrapper"><canvas id="grafPoda"></canvas></div></div>
+        <div class="graf-box"><div class="graf-title">Vývoj teploty vzduchu (°C)</div><div class="graf-wrapper"><canvas id="grafTeplota"></canvas></div></div>
+        <div class="graf-box"><div class="graf-title">Vývoj vlhkosti vzduchu (%)</div><div class="graf-wrapper"><canvas id="grafVzduch"></canvas></div></div>
+    </div>
+
+</div>
+
+<script>
+    let aktivnaRastlina = "rastlina1";
+
+    const chartOptions = (yMin, yMax) => ({
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { min: yMin, max: yMax, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } },
+        plugins: { legend: { display: false } }
+    });
+
+    const chartPoda = new Chart(document.getElementById('grafPoda').getContext('2d'), { type: 'line', data: { labels: [], datasets: [{ borderColor: '#354a37', backgroundColor: 'rgba(53, 74, 55, 0.08)', borderWidth: 3, tension: 0.2, fill: true, data: [] }] }, options: chartOptions(0, 100) });
+    const chartTeplota = new Chart(document.getElementById('grafTeplota').getContext('2d'), { type: 'line', data: { labels: [], datasets: [{ borderColor: '#876243', backgroundColor: 'rgba(135, 98, 67, 0.05)', borderWidth: 3, tension: 0.2, fill: true, data: [] }] }, options: chartOptions(10, 40) });
+    const chartVzduch = new Chart(document.getElementById('grafVzduch').getContext('2d'), { type: 'line', data: { labels: [], datasets: [{ borderColor: '#556b58', backgroundColor: 'rgba(85, 107, 88, 0.05)', borderWidth: 3, tension: 0.2, fill: true, data: [] }] }, options: chartOptions(0, 100) });
+
+    function prekniRastlinu(id, event) {
+        if (event.target.tagName === 'INPUT') return;
+        aktivnaRastlina = id;
+        document.querySelectorAll('.rastlina-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('btn-' + id).classList.add('active');
+        aktualizujDashboard();
+    }
+
+    function upravNazovRastliny(id, event) {
+        event.stopPropagation();
+        const el = document.getElementById('label-' + id);
+        const povodnyText = el.innerText;
+        const input = document.createElement('input');
+        input.type = 'text'; input.value = povodnyText; input.className = 'edit-input';
+        
+        input.onblur = async function() {
+            const novyText = input.value.trim();
+            if(novyText && novyText !== povodnyText) {
+                el.innerText = novyText;
+                await fetch('/api/update_plant', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: id, nazov: novyText}) });
+                if(id === aktivnaRastlina) document.getElementById('aktualny-nazov-rastliny').innerText = novyText;
+            } else { el.innerText = povodnyText; }
+        };
+        input.onkeydown = function(e) { if(e.key === 'Enter') input.blur(); };
+        el.innerHTML = ''; el.appendChild(input); input.focus();
+    }
+
+    function upravTyzdennika(index, event) {
+        const el = document.getElementById('sluzba-' + index);
+        let povodnyText = el.innerText;
+        if(povodnyText.includes("Zadaj týždenníkov")) povodnyText = "";
+        if(povodnyText.startsWith("👤 ")) povodnyText = povodnyText.substring(2);
+
+        const input = document.createElement('input');
+        input.type = 'text'; input.value = povodnyText; input.className = 'edit-input';
+
+        input.onblur = async function() {
+            const novyText = input.value.trim();
+            if(novyText) { el.innerText = "👤 " + novyText; el.classList.remove('prazdny-text'); }
+            else { el.innerText = "Zadaj týždenníkov..."; el.classList.add('prazdny-text'); }
+            await fetch('/api/update_weeks', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({index: index, sluzba: novyText}) });
+        };
+        input.onkeydown = function(e) { if(e.key === 'Enter') input.blur(); };
+        el.innerHTML = ''; el.appendChild(input); input.focus();
+    }
+
+    async function aktualizujDashboard() {
+        try {
+            const response = await fetch(`/api/history/${aktivnaRastlina}`);
+            if (!response.ok) return;
+            const data = await response.json();
+
+            const nazovRastliny = document.getElementById('label-' + aktivnaRastlina).innerText;
+            document.getElementById('aktualny-nazov-rastliny').innerText = nazovRastliny;
+
+            const akt = data.aktualne;
+            const hist = data.historia;
+            const manPolial = data.manualne_poliate;
+
+            document.getElementById('cas-aktualizacie').innerText = akt.cas || "--:--";
+            document.getElementById('txt-teplota').innerText = (akt.teplota || "0.0") + " °C";
+            document.getElementById('txt-vzduch').innerText = (akt.vzduch || "0") + " %";
+            document.getElementById('txt-poda').innerText = (akt.poda || "0") + " %";
+            document.getElementById('txt-stav').innerText = akt.stav || "Bez dát";
+
+            const btnZaliat = document.getElementById('btn-zaliat-klik');
+            const statusTxt = document.getElementById('txt-zaliate-status');
+
+            if (akt.stav && (akt.stav.includes("SUCHÁ") || akt.stav.includes("Zatiaľ bez dát"))) {
+                if (manPolial) {
+                    btnZaliat.style.display = "none";
+                    statusTxt.innerText = `✅ Už poliate (o ${manPolial})`;
+                    statusTxt.style.display = "block";
+                } else {
+                    btnZaliat.style.display = "block";
+                    statusTxt.style.display = "none";
+                }
+            } else {
+                btnZaliat.style.display = "none";
+                statusTxt.style.display = "none";
+            }
+
+            if (hist && hist.length > 0) {
+                const noveCasy = hist.map(m => m.cas);
+                chartPoda.data.labels = noveCasy; chartPoda.data.datasets[0].data = hist.map(m => m.poda); chartPoda.update('none');
+                chartTeplota.data.labels = noveCasy; chartTeplota.data.datasets[0].data = hist.map(m => m.teplota); chartTeplota.update('none');
+                chartVzduch.data.labels = noveCasy; chartVzduch.data.datasets[0].data = hist.map(m => m.vzduch); chartVzduch.update('none');
+            } else {
+                chartPoda.data.labels = []; chartPoda.data.datasets[0].data = []; chartPoda.update('none');
+                chartTeet = chartTeplota; chartTeet.data.labels = []; chartTeet.data.datasets[0].data = []; chartTeet.update('none');
+                chartVzduch.data.labels = []; chartVzduch.data.datasets[0].data = []; chartVzduch.update('none');
+            }
+        } catch (err) { console.log("Chyba synchronizácie..."); }
+    }
+
+    async function odosliZaliate() {
+        try {
+            const response = await fetch(`/api/zaliate/${aktivnaRastlina}`, { method: 'POST' });
+            if (response.ok) { aktualizujDashboard(); }
+        } catch (err) { console.log("Chyba."); }
+    }
+
+    window.onload = function() {
+        aktualizujDashboard();
+        setInterval(aktualizujDashboard, 60000);
+    };
+</script>
+
+</body>
+</html>
