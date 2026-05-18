@@ -136,6 +136,7 @@
 
     const chartOptions = (yMin, yMax) => ({
         responsive: true, maintainAspectRatio: false,
+        animation: { duration: 0 }, // Vypne blikanie pri rýchlom načítaní
         scales: { y: { min: yMin, max: yMax, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } },
         plugins: { legend: { display: false } }
     });
@@ -226,15 +227,16 @@
                 statusTxt.style.display = "none";
             }
 
+            // EXTREMNE DÔLEŽITÉ: Načítanie historickej čiary hneď po zapnutí
             if (hist && hist.length > 0) {
                 const noveCasy = hist.map(m => m.cas);
-                chartPoda.data.labels = noveCasy; chartPoda.data.datasets[0].data = hist.map(m => m.poda); chartPoda.update('none');
-                chartTeplota.data.labels = noveCasy; chartTeplota.data.datasets[0].data = hist.map(m => m.teplota); chartTeplota.update('none');
-                chartVzduch.data.labels = noveCasy; chartVzduch.data.datasets[0].data = hist.map(m => m.vzduch); chartVzduch.update('none');
+                chartPoda.data.labels = noveCasy; chartPoda.data.datasets[0].data = hist.map(m => m.poda); chartPoda.update();
+                chartTeplota.data.labels = noveCasy; chartTeplota.data.datasets[0].data = hist.map(m => m.teplota); chartTeplota.update();
+                chartVzduch.data.labels = noveCasy; chartVzduch.data.datasets[0].data = hist.map(m => m.vzduch); chartVzduch.update();
             } else {
-                chartPoda.data.labels = []; chartPoda.data.datasets[0].data = []; chartPoda.update('none');
-                chartTeet = chartTeplota; chartTeet.data.labels = []; chartTeet.data.datasets[0].data = []; chartTeet.update('none');
-                chartVzduch.data.labels = []; chartVzduch.data.datasets[0].data = []; chartVzduch.update('none');
+                chartPoda.data.labels = []; chartPoda.data.datasets[0].data = []; chartPoda.update();
+                chartTeplota.data.labels = []; chartTeplota.data.datasets[0].data = []; chartTeplota.update();
+                chartVzduch.data.labels = []; chartVzduch.data.datasets[0].data = []; chartVzduch.update();
             }
         } catch (err) { console.log("Chyba synchronizácie..."); }
     }
@@ -247,8 +249,9 @@
     }
 
     window.onload = function() {
+        // Spustí sa okamžite pri refreshe, natiahne čiary do grafu z JSONu
         aktualizujDashboard();
-        setInterval(aktualizujDashboard, 60000);
+        setInterval(aktualizujDashboard, 10000); // Skrátené na 10 sekúnd pre svižnejšie reakcie
     };
 </script>
 
